@@ -1,0 +1,6 @@
+name: SignShops
+version: '${project.version}'
+main: me.syntheticdev.signshops.SignShopsPlugin
+api-version: 1.19
+authors: [ SyntheticDev ]
+description: Sign shops for chests and barrels
