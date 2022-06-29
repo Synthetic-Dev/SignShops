@@ -93,6 +93,21 @@ public class Shop implements ConfigurationSerializable {
         return (int)Math.floor((double)itemSellingAmount / (double)this.itemSelling.getAmount());
     }
 
+    public int getStockPlayerCanAfford(PlayerInteractEvent event) {
+        int paymentItemAmount = 0;
+        ItemStack handItem = event.getItem();
+        if (handItem == null || !handItem.getType().equals(this.itemPayment.getType())) return 0;
+
+        Player player = event.getPlayer();
+        PlayerInventory inventory = player.getInventory();
+        for (ItemStack item : inventory.getStorageContents()) {
+            if (item == null || !item.getType().equals(this.itemPayment.getType())) continue;
+            if (!SignShopsPlugin.getManager().isShopItem(this.itemPayment, item)) continue;
+            paymentItemAmount += item.getAmount();
+        }
+        return (int)Math.floor((double)paymentItemAmount / (double)this.itemPayment.getAmount());
+    }
+
     public AbstractMap.Entry<ChatColor, String> getStatusAsEntry() {
         if (!this.hasSpace()) return new AbstractMap.SimpleEntry(ChatColor.RED, "Full");
         if (this.getStock() > 0) return new AbstractMap.SimpleEntry(ChatColor.GREEN, "Open");
@@ -122,25 +137,10 @@ public class Shop implements ConfigurationSerializable {
         return this.hasSpace() && this.getStock() > 0;
     }
 
-    public boolean canPlayerAfford(PlayerInteractEvent event) {
-        int paymentItemAmount = 0;
-        ItemStack handItem = event.getItem();
-        if (handItem == null || !handItem.getType().equals(this.itemPayment.getType())) return false;
-
-        Player player = event.getPlayer();
-        PlayerInventory inventory = player.getInventory();
-        for (ItemStack item : inventory.getStorageContents()) {
-            if (item == null || !item.getType().equals(this.itemPayment.getType())) continue;
-            if (!SignShopsPlugin.getManager().isShopItem(this.itemPayment, item)) continue;
-            paymentItemAmount += item.getAmount();
-            if (paymentItemAmount >= this.itemPayment.getAmount()) return true;
-        }
-        return false;
-    }
-
     public void makeDeal(PlayerInteractEvent event) {
         Player player = event.getPlayer();
-        if (!this.canPlayerAfford(event)) {
+        int stockPlayerCanAfford = this.getStockPlayerCanAfford(event);
+        if (stockPlayerCanAfford == 0) {
             ComponentBuilder builder = new ComponentBuilder("[Shop] You don't have enough ").color(net.md_5.bungee.api.ChatColor.RED)
                 .append(SignShopsManager.getItemTextComponent(this.itemPayment))
                 .append(" to pay!").reset().color(net.md_5.bungee.api.ChatColor.RED);
@@ -150,67 +150,84 @@ public class Shop implements ConfigurationSerializable {
 
         if (!this.canMakeDeal()) {
             player.sendMessage(ChatColor.RED + "[Shop] Sorry, the shop is: " + this.getStatus());
+            return;
         }
 
-        {
-            int paymentAmountToTake = this.itemPayment.getAmount();
-            ItemStack handItem = event.getItem();
-            PlayerInventory inventory = player.getInventory();
-            if (paymentAmountToTake < handItem.getAmount()) {
-                handItem.setAmount(handItem.getAmount() - paymentAmountToTake);
-            } else {
-                paymentAmountToTake -= handItem.getAmount();
-                inventory.setItem(event.getHand(), null);
+        int stockAvailable = this.getStock();
+        int stockToGive = 1;
+        if (player.isSneaking()) {
+            stockToGive = Math.min(stockAvailable, stockPlayerCanAfford);
+        }
+
+        boolean hasDroppedItems = false;
+        for (int stockIndex = 0; stockIndex < stockToGive; stockIndex++) {
+            if (!this.hasSpace() || stockAvailable - (stockIndex + 1) < 0) {
+                break;
+            }
+
+            {
+                int paymentAmountToTake = this.itemPayment.getAmount();
+                ItemStack handItem = event.getItem();
+                PlayerInventory inventory = player.getInventory();
+                if (paymentAmountToTake < handItem.getAmount()) {
+                    handItem.setAmount(handItem.getAmount() - paymentAmountToTake);
+                } else {
+                    paymentAmountToTake -= handItem.getAmount();
+                    inventory.setItem(event.getHand(), null);
+
+                    for (int i = 0; i < inventory.getSize(); i++) {
+                        ItemStack item = inventory.getItem(i);
+                        if (item == null || !item.getType().equals(this.itemPayment.getType())) continue;
+                        if (!SignShopsPlugin.getManager().isShopItem(this.itemPayment, item)) continue;
+
+                        if (paymentAmountToTake < item.getAmount()) {
+                            item.setAmount(item.getAmount() - paymentAmountToTake);
+                            break;
+                        }
+
+                        paymentAmountToTake -= item.getAmount();
+                        inventory.setItem(i, null);
+                        if (paymentAmountToTake == 0) break;
+                    }
+                }
+
+                ItemStack itemsToGive = this.itemSelling.clone();
+                HashMap<Integer, ItemStack> result = inventory.addItem(itemsToGive);
+                if (!result.isEmpty()) {
+                    if (!hasDroppedItems) {
+                        player.sendMessage(ChatColor.YELLOW + "[Shop] Your inventory is full, dropping excess items.");
+                    }
+                    hasDroppedItems = true;
+
+                    World world = player.getWorld();
+                    for (ItemStack item : result.values()) {
+                        world.dropItem(player.getLocation(), item);
+                    }
+                }
+            }
+
+            {
+                int sellingAmountToTake = this.itemSelling.getAmount();
+                Inventory inventory = this.getInventory();
 
                 for (int i = 0; i < inventory.getSize(); i++) {
                     ItemStack item = inventory.getItem(i);
-                    if (item == null || !item.getType().equals(this.itemPayment.getType())) continue;
-                    if (!SignShopsPlugin.getManager().isShopItem(this.itemPayment, item)) continue;
+                    if (item == null || !item.getType().equals(this.itemSelling.getType())) continue;
+                    if (!SignShopsPlugin.getManager().isShopItem(this.itemSelling, item)) continue;
 
-                    if (paymentAmountToTake < item.getAmount()) {
-                        item.setAmount(item.getAmount() - paymentAmountToTake);
+                    if (sellingAmountToTake < item.getAmount()) {
+                        item.setAmount(item.getAmount() - sellingAmountToTake);
                         break;
                     }
 
-                    paymentAmountToTake -= item.getAmount();
+                    sellingAmountToTake -= item.getAmount();
                     inventory.setItem(i, null);
-                    if (paymentAmountToTake == 0) break;
-                }
-            }
-
-            ItemStack itemsToGive = this.itemSelling.clone();
-            HashMap<Integer, ItemStack> result = inventory.addItem(itemsToGive);
-            if (!result.isEmpty()) {
-                player.sendMessage(ChatColor.YELLOW + "[Shop] Your inventory is full, dropping excess items.");
-
-                World world = player.getWorld();
-                for (ItemStack item : result.values()) {
-                    world.dropItem(player.getLocation(), item);
-                }
-            }
-        }
-
-        {
-            int sellingAmountToTake = this.itemSelling.getAmount();
-            Inventory inventory = this.getInventory();
-
-            for (int i = 0; i < inventory.getSize(); i++) {
-                ItemStack item = inventory.getItem(i);
-                if (item == null || !item.getType().equals(this.itemSelling.getType())) continue;
-                if (!SignShopsPlugin.getManager().isShopItem(this.itemSelling, item)) continue;
-
-                if (sellingAmountToTake < item.getAmount()) {
-                    item.setAmount(item.getAmount() - sellingAmountToTake);
-                    break;
+                    if (sellingAmountToTake == 0) break;
                 }
 
-                sellingAmountToTake -= item.getAmount();
-                inventory.setItem(i, null);
-                if (sellingAmountToTake == 0) break;
+                ItemStack itemsToAdd = this.itemPayment.clone();
+                inventory.addItem(itemsToAdd);
             }
-
-            ItemStack itemsToAdd = this.itemPayment.clone();
-            inventory.addItem(itemsToAdd);
         }
     }
 
