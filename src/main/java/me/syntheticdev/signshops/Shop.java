@@ -49,15 +49,11 @@ public class Shop implements ConfigurationSerializable {
 
     @Nullable
     public Container getContainer() {
-        return this.container;
+        return (Container)this.container.getLocation().getBlock().getState();
     }
 
     @Nullable
     public Sign getSign() { return this.sign; }
-
-    public void setContainer(Container container) {
-        this.container = container;
-    }
 
     public boolean isOwner(Player player) {
         return this.owner.getUniqueId().equals(player.getUniqueId());
@@ -71,18 +67,10 @@ public class Shop implements ConfigurationSerializable {
         return this.itemPayment.clone();
     }
 
-    public Inventory getInventory() {
-        Inventory inventory = this.container.getInventory();
-        if (inventory.getHolder() instanceof DoubleChest) {
-            return ((DoubleChest)inventory.getHolder()).getInventory();
-        }
-        return this.container.getInventory();
-    }
-
     public int getStock() {
         int itemSellingAmount = 0;
 
-        Inventory inventory = this.getInventory();
+        Inventory inventory = this.getContainer().getInventory();
         for (ItemStack item : inventory.getContents()) {
             if (item == null || !item.getType().equals(this.itemSelling.getType())) continue;
             if (!SignShopsPlugin.getManager().isShopItem(this.itemSelling, item)) continue;
@@ -122,7 +110,7 @@ public class Shop implements ConfigurationSerializable {
     public boolean hasSpace() {
         int itemPaymentFreeSpace = 0;
 
-        Inventory inventory = this.getInventory();
+        Inventory inventory = this.getContainer().getInventory();
         for (ItemStack item : inventory.getContents()) {
             if (item == null || !item.getType().equals(this.itemPayment.getType())) continue;
             if (!SignShopsPlugin.getManager().isShopItem(this.itemPayment, item)) continue;
@@ -208,7 +196,7 @@ public class Shop implements ConfigurationSerializable {
 
             {
                 int sellingAmountToTake = this.itemSelling.getAmount();
-                Inventory inventory = this.getInventory();
+                Inventory inventory = this.getContainer().getInventory();
 
                 for (int i = 0; i < inventory.getSize(); i++) {
                     ItemStack item = inventory.getItem(i);

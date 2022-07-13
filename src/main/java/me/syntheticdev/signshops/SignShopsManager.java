@@ -306,6 +306,8 @@ public class SignShopsManager {
 
     public void handleShopOpen(PlayerInteractEvent event, @Nullable Shop shop) {
         Player player = event.getPlayer();
+        if (player.isSneaking()) return;
+
         Block block = event.getClickedBlock();
         if (shop == null) shop = this.getShop(block);
         if (shop == null) return;
@@ -318,6 +320,6 @@ public class SignShopsManager {
             return;
         }
 
-        player.openInventory(shop.getInventory());
+        player.openInventory(shop.getContainer().getInventory());
     }
 }

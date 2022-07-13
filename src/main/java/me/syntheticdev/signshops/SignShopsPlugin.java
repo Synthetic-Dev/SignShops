@@ -1,6 +1,7 @@
 package me.syntheticdev.signshops;
 
 import me.syntheticdev.signshops.events.BlockListener;
+import me.syntheticdev.signshops.events.InventoryListener;
 import me.syntheticdev.signshops.events.PlayerInteractListener;
 import me.syntheticdev.signshops.events.SignChangeListener;
 import org.bukkit.Bukkit;
@@ -37,5 +38,6 @@ public final class SignShopsPlugin extends JavaPlugin {
         manager.registerEvents(new PlayerInteractListener(), this);
         manager.registerEvents(new SignChangeListener(), this);
         manager.registerEvents(new BlockListener(), this);
+        manager.registerEvents(new InventoryListener(), this);
     }
 }
