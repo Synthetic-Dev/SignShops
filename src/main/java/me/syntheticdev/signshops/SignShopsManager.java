@@ -74,7 +74,9 @@ public class SignShopsManager {
             return false;
         }
 
-        if (sellingAmount > 0 && paymentAmount > 0 && lines[3].trim().isEmpty()) {
+        String adminLine = lines[3].trim();
+
+        if (sellingAmount > 0 && paymentAmount > 0 && (adminLine.isEmpty() || adminLine.equalsIgnoreCase("admin"))) {
             return true;
         }
         return false;
@@ -213,6 +215,17 @@ public class SignShopsManager {
 
         String[] lines = event.getLines();
 
+        String adminLine = lines[3].trim();
+        boolean isAdmin = false;
+
+        if (adminLine.equalsIgnoreCase("admin")) {
+            if (!player.hasPermission("signshops.admin")) {
+                player.sendMessage(ChatColor.RED + "[Shop] Only admins can make an admin shop.");
+                return null;
+            }
+            isAdmin = true;
+        }
+
         itemSelling = itemSelling.clone();
         itemPayment = itemPayment.clone();
         int sellingAmount = Short.parseShort(lines[1].trim());
@@ -223,9 +236,9 @@ public class SignShopsManager {
         event.setLine(0, ChatColor.BOLD + "[Shop]");
         event.setLine(1, ChatColor.GREEN + "Selling: " + sellingAmount);
         event.setLine(2, ChatColor.YELLOW + "Cost: " + paymentAmount);
-        event.setLine(3, player.getDisplayName());
+        event.setLine(3, isAdmin ? ChatColor.RED + "[Admin]" : player.getDisplayName());
 
-        Shop shop = new Shop(player, container, sign, itemSelling, itemPayment);
+        Shop shop = new Shop(player, container, sign, itemSelling, itemPayment, isAdmin);
 
         try {
             File file = new File(SignShopsPlugin.getPlugin().getDataFolder().getAbsolutePath(), "shops.yml");
@@ -248,13 +261,16 @@ public class SignShopsManager {
             return false;
         }
 
-        Logger logger = SignShopsPlugin.getPlugin().getLogger();
+        if (shop.isAdmin() && !player.hasPermission("signshops.admin")) {
+            player.sendMessage(ChatColor.RED + "[Shop] Only admins can destroy admin shops.");
+            return false;
+        }
+
         Sign sign = shop.getSign();
         Container container = shop.getContainer();
 
         if (!(container.getLocation().equals(event.getBlock().getLocation())
                 || sign.getLocation().equals(event.getBlock().getLocation()))) {
-            //logger.info("Broke non-primary container");
             return true;
         }
 
@@ -311,6 +327,11 @@ public class SignShopsManager {
         Block block = event.getClickedBlock();
         if (shop == null) shop = this.getShop(block);
         if (shop == null) return;
+
+        if (shop.isAdmin()) {
+            player.sendMessage(ChatColor.RED + "[Shop] Admin shops cannot be opened.");
+            return;
+        }
 
         if (!shop.isOwner(player) && !player.hasPermission("signshops.admin")) {
             if (this.isValidContainer(block)) {

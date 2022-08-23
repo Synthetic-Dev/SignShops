@@ -35,13 +35,8 @@ public class BlockListener implements Listener {
         Shop shop = manager.getShop(block);
         if (shop == null) return;
 
-        Logger logger = SignShopsPlugin.getPlugin().getLogger();
-//        logger.info("Broke: " + shop);
-//        logger.info("Is null: " + (shop == null));
-
         try {
             boolean shouldBreak = manager.destroyShop(event, shop);
-//            logger.info("Should break: " + shouldBreak);
             event.setCancelled(!shouldBreak);
         } catch (IOException err) {
             err.printStackTrace();

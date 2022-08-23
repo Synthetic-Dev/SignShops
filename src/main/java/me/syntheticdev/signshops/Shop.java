@@ -20,16 +20,18 @@ public class Shop implements ConfigurationSerializable {
     private ItemStack itemPayment;
     private @Nullable Container container;
     private @Nullable Sign sign;
+    private boolean isAdmin;
 
-    public Shop(OfflinePlayer owner, Container container, Sign sign, ItemStack itemSelling, ItemStack itemPayment) {
+    public Shop(OfflinePlayer owner, Container container, Sign sign, ItemStack itemSelling, ItemStack itemPayment, boolean isAdmin) {
         this.owner = owner;
         this.container = container;
         this.sign = sign;
         this.itemSelling = itemSelling;
         this.itemPayment = itemPayment;
+        this.isAdmin = isAdmin;
     }
 
-    public Shop(OfflinePlayer owner, Location container, Location sign, ItemStack itemSelling, ItemStack itemPayment) {
+    public Shop(OfflinePlayer owner, Location container, Location sign, ItemStack itemSelling, ItemStack itemPayment, boolean isAdmin) {
         Block containerBlock = container.getBlock();
         if (SignShopsPlugin.getManager().isValidContainer(containerBlock)) {
             this.container = (Container)containerBlock.getState();
@@ -41,11 +43,8 @@ public class Shop implements ConfigurationSerializable {
         this.owner = owner;
         this.itemSelling = itemSelling;
         this.itemPayment = itemPayment;
+        this.isAdmin = isAdmin;
     }
-
-//    public OfflinePlayer getOwner() {
-//        return this.owner;
-//    }
 
     @Nullable
     public Container getContainer() {
@@ -54,6 +53,8 @@ public class Shop implements ConfigurationSerializable {
 
     @Nullable
     public Sign getSign() { return this.sign; }
+
+    public boolean isAdmin() { return this.isAdmin; }
 
     public boolean isOwner(Player player) {
         return this.owner.getUniqueId().equals(player.getUniqueId());
@@ -97,6 +98,7 @@ public class Shop implements ConfigurationSerializable {
     }
 
     public AbstractMap.Entry<ChatColor, String> getStatusAsEntry() {
+        if (this.isAdmin) return new AbstractMap.SimpleEntry(ChatColor.GREEN, "Open");
         if (!this.hasSpace()) return new AbstractMap.SimpleEntry(ChatColor.RED, "Full");
         if (this.getStock() > 0) return new AbstractMap.SimpleEntry(ChatColor.GREEN, "Open");
         return new AbstractMap.SimpleEntry(ChatColor.RED, "Out of Stock");
@@ -108,6 +110,8 @@ public class Shop implements ConfigurationSerializable {
     }
 
     public boolean hasSpace() {
+        if (this.isAdmin) return true;
+
         int itemPaymentFreeSpace = 0;
 
         Inventory inventory = this.getContainer().getInventory();
@@ -122,7 +126,7 @@ public class Shop implements ConfigurationSerializable {
     }
 
     public boolean canMakeDeal() {
-        return this.hasSpace() && this.getStock() > 0;
+        return this.isAdmin || (this.hasSpace() && this.getStock() > 0);
     }
 
     public void makeDeal(PlayerInteractEvent event) {
@@ -144,12 +148,12 @@ public class Shop implements ConfigurationSerializable {
         int stockAvailable = this.getStock();
         int stockToGive = 1;
         if (player.isSneaking()) {
-            stockToGive = Math.min(stockAvailable, stockPlayerCanAfford);
+            stockToGive = this.isAdmin ? stockPlayerCanAfford : Math.min(stockAvailable, stockPlayerCanAfford);
         }
 
         boolean hasDroppedItems = false;
         for (int stockIndex = 0; stockIndex < stockToGive; stockIndex++) {
-            if (!this.hasSpace() || stockAvailable - (stockIndex + 1) < 0) {
+            if (!this.isAdmin && (!this.hasSpace() || stockAvailable - (stockIndex + 1) < 0)) {
                 break;
             }
 
@@ -194,7 +198,7 @@ public class Shop implements ConfigurationSerializable {
                 }
             }
 
-            {
+            if (!this.isAdmin) {
                 int sellingAmountToTake = this.itemSelling.getAmount();
                 Inventory inventory = this.getContainer().getInventory();
 
@@ -227,6 +231,7 @@ public class Shop implements ConfigurationSerializable {
         serializedMap.put("sign", this.sign.getLocation());
         serializedMap.put("itemSelling", this.itemSelling);
         serializedMap.put("itemPayment", this.itemPayment);
+        serializedMap.put("isAdmin", this.isAdmin);
         return serializedMap;
     }
 
@@ -240,7 +245,9 @@ public class Shop implements ConfigurationSerializable {
         ItemStack itemSelling = (ItemStack)serializedMap.get("itemSelling");
         ItemStack itemPayment = (ItemStack)serializedMap.get("itemPayment");
 
-        Shop deserialized = new Shop(owner, containerLocation, signLocation, itemSelling, itemPayment);
+        boolean isAdmin = (boolean)serializedMap.get("isAdmin");
+
+        Shop deserialized = new Shop(owner, containerLocation, signLocation, itemSelling, itemPayment, isAdmin);
         return deserialized;
     }
 }
