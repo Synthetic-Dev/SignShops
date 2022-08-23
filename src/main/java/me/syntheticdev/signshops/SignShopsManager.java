@@ -313,7 +313,7 @@ public class SignShopsManager {
             return;
         }
 
-        if (shop.isOwner(player)) {
+        if (!shop.isAdmin() && shop.isOwner(player)) {
             this.handleShopOpen(event, shop);
         } else {
             shop.makeDeal(event);
